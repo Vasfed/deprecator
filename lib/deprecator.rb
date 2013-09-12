@@ -32,11 +32,7 @@ module Deprecator
 
 
   module Strategy
-    class Warning
-      def msg msg, where=nil
-        warn "[DEPRECATED] #{msg}"
-      end
-
+    class Base
       def class_found o, where=nil, reason=nil, args=nil
         # msg(if reason
         #   reason.gsub(/%{cls}/, o)
@@ -44,16 +40,6 @@ module Deprecator
         #   "#{o} is deprecated!"
         # end, where)
       end
-
-      def object_found o, where=nil, reason=nil # deprecated class initialize
-        msg "deprecated class #{o.class} instantiated", where
-      end
-
-      # this is not entry point
-      def method_called cls,name,reason=nil,where,defined_at
-        msg "method #{name} is deprecated. Called from #{caller_line}"
-      end
-
       def method_found cls,name, reason, where=nil
         this = self
         unless cls.method_defined?(name) # also we may place stubs there for existing methods in other strategies
@@ -68,6 +54,26 @@ module Deprecator
           }
         end
       end
+      def fixme! msg, where, args; end
+      def todo! msg, where, args; end
+      def not_implemented msg, where, args
+        raise NotImplemented, "method at #{where} called from #{caller_line(2)}"
+      end
+    end
+
+    class Warning < Base
+      def msg msg, where=nil
+        warn "[DEPRECATED] #{msg}"
+      end
+
+      def object_found o, where=nil, reason=nil # deprecated class initialize
+        msg "deprecated class #{o.class} instantiated", where
+      end
+
+      # this is not entry point
+      def method_called cls,name,reason=nil,where,defined_at
+        msg "method #{name} is deprecated. Called from #{caller_line}"
+      end
 
       def deprecated reason=nil, where=caller_line, args=nil
         where =~ /in `(.+)'$/
@@ -75,13 +81,6 @@ module Deprecator
         reason ||= "%{method} is deprecated!"
         reason.gsub!('%{method}', method_name)
         msg reason, where
-      end
-      def fixme! msg, where, args
-        # warn "[FIXME] #{msg} @ #{where}"
-      end
-      def todo! msg, where, args; end
-      def not_implemented msg, where, args
-        raise NotImplemented, "method at #{where} called from #{caller_line(2)}"
       end
     end
   end
@@ -101,7 +100,7 @@ module Deprecator
     when Symbol then
       capitalized = s.capitalize
       if Strategy.const_defined?(capitalized)
-        strategy = Strategy.const_get(capitalized)
+        self.strategy = Strategy.const_get(capitalized)
       else
         raise UnknownStrategy, s
       end
@@ -111,7 +110,7 @@ module Deprecator
   end
 end
 
-class Class
+module Deprecator::ClassClassMethods
   def deprecated reason=nil, *args
     ::Deprecator.strategy.class_found(self, caller_line, reason, args)
   end
@@ -137,13 +136,14 @@ class Class
   end
 
   def deprecated_method name=nil, reason=nil, &blk
+    where = caller_line
     unless reason
       if !name || name.is_a?(String)
         reason = name
         name = nil
         # => take next defined method
-        __on_next_method{|name|
-          Deprecator.strategy.method_found(self, name, reason, caller_line)
+        __on_next_method {|name|
+          Deprecator.strategy.method_found(self, name, reason, where)
         }
         return
       end
@@ -151,9 +151,17 @@ class Class
 
     name = [name] unless name.is_a?(Array)
     name.each{|n|
-      Deprecator.strategy.method_found(self, n, reason, caller_line)
+      Deprecator.strategy.method_found(self, n, reason, where)
     }
   end
+end
+
+class Module
+  include Deprecator::ClassClassMethods
+end
+
+class Class
+  include Deprecator::ClassClassMethods
 end
 
 module Kernel
