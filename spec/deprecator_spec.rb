@@ -1,5 +1,4 @@
 require 'rspec/autorun'
-# require 'rr'
 require 'deprecator'
 
 describe Deprecator do

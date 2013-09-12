@@ -5,54 +5,90 @@ module Deprecator
 
   class DeprecatedClass
     def self.inherited cls
-      ::Deprecator.strategy.class_found(cls, caller_line)
-    end
-
-    def initialize *args
-      ::Deprecator.strategy.object_found(self, caller_line)
+      cls.extend(Deprecated)
     end
   end
 
-  module DeprecatedModule
-    [:included, :extended].each{|m|
-      define_singleton_method(m){|cls|
-        ::Deprecator.strategy.class_found(cls, caller_line)
-      }
-    }
-
-    # SMELL: initialize in module is no good, but in this case may help for some cases
-    def initialize *args
-      ::Deprecator.strategy.object_found(self, caller_line)
+  module Deprecated
+    def self.included cls
+      cls.extend self
     end
+
+    def self.extended cls
+      ::Deprecator.strategy.class_found(cls, caller_line)
+      cls.send :include, InstanceMethods
+    end
+
+    module InstanceMethods
+      # SMELL: initialize in module is no good, but in this case may help for some cases
+      def initialize *args
+        ::Deprecator.strategy.object_found(self, caller_line)
+      end
+    end
+
 
     Class = DeprecatedClass
   end
 
 
-  module Strategies
+  module Strategy
     class Warning
-      def class_found o, where=nil, reason=nil
+      def msg msg, where=nil
+        warn "[DEPRECATED] #{msg}"
       end
+
+      def class_found o, where=nil, reason=nil, args=nil
+        # msg(if reason
+        #   reason.gsub(/%{cls}/, o)
+        # else
+        #   "#{o} is deprecated!"
+        # end, where)
+      end
+
       def object_found o, where=nil, reason=nil # deprecated class initialize
+        msg "deprecated class #{o.class} instantiated", where
       end
+
+      # this is not entry point
+      def method_called cls,name,reason=nil,where,defined_at
+        msg "method #{name} is deprecated. Called from #{caller_line}"
+      end
+
       def method_found cls,name, reason, where=nil
-        unless cls.methods.include?(name) # also we may place stubs there for existing methods in other strategies
-          cls.define_method(name){|*args|
-            warn "deprecated method called!"
+        this = self
+        unless cls.method_defined?(name) # also we may place stubs there for existing methods in other strategies
+          cls.send :define_method, name, ->(*args){
+            this.method_called cls,name,reason,caller_line,where
+          }
+        else
+          method = cls.instance_method(name)
+          cls.send :define_method, name, ->(*args){
+            this.method_called cls,name,reason,caller_line,where
+            method.bind(self).call(*args)
           }
         end
       end
-      def deprecated reason, where, args
+
+      def deprecated reason=nil, where=caller_line, args=nil
+        where =~ /in `(.+)'$/
+        method_name = $1 || '<unknown>'
+        reason ||= "%{method} is deprecated!"
+        reason.gsub!('%{method}', method_name)
+        msg reason, where
       end
-      def fixme! msg, where, args; end
+      def fixme! msg, where, args
+        # warn "[FIXME] #{msg} @ #{where}"
+      end
       def todo! msg, where, args; end
       def not_implemented msg, where, args
+        raise NotImplemented, "method at #{where} called from #{caller_line(2)}"
       end
     end
   end
-  DefaultStrategy = Strategies::Warning
+  DefaultStrategy = Strategy::Warning
 
   class UnknownStrategy < ArgumentError; end
+  class NotImplemented < RuntimeError; end
 
   @@strategy = nil
   def self.strategy
@@ -64,8 +100,8 @@ module Deprecator
     when Class then return(@@strategy = s.new)
     when Symbol then
       capitalized = s.capitalize
-      if Strategies.const_defined?(capitalized)
-        strategy = Strategies.const_get(capitalized)
+      if Strategy.const_defined?(capitalized)
+        strategy = Strategy.const_get(capitalized)
       else
         raise UnknownStrategy, s
       end
@@ -81,32 +117,41 @@ class Class
   end
 
   def __on_next_method &blk
-    m = self.method(:method_added)
     @method_added_stack ||= []
-    @method_added_stack.push(m)
-    self.define_method(:method_added, ->(name){
-      super
+    if self.respond_to?(:method_added) || @method_added_stack.size > 0
+      m = self.method(:method_added)
+      @method_added_stack.push(m)
+    end
+
+    define_singleton_method(:method_added, ->(name){
       return if name == :method_added
+      super(name)
+      old = @method_added_stack.pop
+      if old
+        define_singleton_method(:method_added, old)
+      else
+        class <<self; remove_method(:method_added); end
+      end
       blk.call(name)
-      self.define_method(:method_added, @method_added_stack.pop)
     })
   end
 
-  def deprecated_method name, reason=nil, &blk
+  def deprecated_method name=nil, reason=nil, &blk
     unless reason
-      if name.is_a?(String)
+      if !name || name.is_a?(String)
         reason = name
         name = nil
         # => take next defined method
         __on_next_method{|name|
           Deprecator.strategy.method_found(self, name, reason, caller_line)
         }
+        return
       end
     end
 
     name = [name] unless name.is_a?(Array)
     name.each{|n|
-      Deprecator.strategy.method_found(self, name, reason, caller_line)
+      Deprecator.strategy.method_found(self, n, reason, caller_line)
     }
   end
 end
@@ -118,12 +163,12 @@ module Kernel
   alias DEPRECATED deprecated
 
   [:fixme!, :todo!, :not_implemented].each{|method|
-    define_method(method){|msg, *args| Deprecator.strategy.send(method, msg, caller_line, args) }
+    define_method(method){|msg=nil, *args| Deprecator.strategy.send(method, msg, caller_line, args) }
   }
   alias FIXME fixme!
   alias TODO todo!
   alias NOT_IMPLEMENTED not_implemented
 end
 
-DEPRECATED = Deprecator::DeprecatedModule
+DEPRECATED = Deprecator::Deprecated
 Deprecated = DEPRECATED unless Object.const_defined?(:Deprecated)
