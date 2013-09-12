@@ -46,7 +46,7 @@ describe Deprecator do
 
     context "methods" do
       before{
-        subject.strategy = :warning
+        subject.strategy = :base
       }
       it "simple" do
         subject.strategy.should_receive(:deprecated).with("reason", duck_type(:to_s), [])
@@ -73,6 +73,34 @@ describe Deprecator do
   end
 
   context "strategy" do
+    context "also installs hooks for class instantiation" do
+      before{ subject.strategy = :base }
+      it "without a reason passed" do
+        cls = Class.new(DEPRECATED::Class)
+        subject.strategy.should_receive(:object_found).with(cls, kind_of(cls), nil, /#{Regexp.escape __FILE__}:#{__LINE__+1}/, /#{Regexp.escape __FILE__}:#{__LINE__-1}/)
+        cls.new
+      end
+
+      it "with reason passed" do
+        cls = Class.new{ deprecated "reason" }
+        subject.strategy.should_receive(:object_found).with(cls, kind_of(cls), "reason", /#{Regexp.escape __FILE__}:#{__LINE__+1}/, /#{Regexp.escape __FILE__}:#{__LINE__-1}/)
+        cls.new
+      end
+
+      it "and guards for initialize method" do
+        cls = Class.new{
+          deprecated "reason"
+          # def self.method_added(name); puts "method added #{name}"; end
+          def initialize
+            self.class.initialize_called
+          end
+        }
+        cls.should_receive(:initialize_called).once
+        subject.strategy.should_receive(:object_found).with(cls, kind_of(cls), "reason", /#{Regexp.escape __FILE__}:#{__LINE__+1}/, /#{Regexp.escape __FILE__}:#{__LINE__-7}/)
+        cls.new
+      end
+    end
+
     context "set" do
       it "via object" do
         obj = Object.new

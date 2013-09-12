@@ -6,7 +6,9 @@ module Deprecator
 
   class DeprecatedClass
     def self.inherited cls
-      cls.extend(Deprecated)
+      ::Deprecator.strategy.class_found(cls, caller_line)
+      # cls.extend(Deprecated::ClassMethods)
+      # cls.send :include, Deprecated::InstanceMethods
     end
   end
 
@@ -17,15 +19,19 @@ module Deprecator
 
     def self.extended cls
       ::Deprecator.strategy.class_found(cls, caller_line)
-      cls.send :include, InstanceMethods
+      # cls.send :include, InstanceMethods
+      # cls.extend ClassMethods
     end
 
-    module InstanceMethods
-      # SMELL: initialize in module is no good, but in this case may help for some cases
-      def initialize *args
-        ::Deprecator.strategy.object_found(self, caller_line)
-      end
-    end
+    # module ClassMethods
+    # end
+
+    # module InstanceMethods
+    #   # SMELL: initialize in module is no good, but in this case may help for some cases
+    #   def initialize *args
+    #     ::Deprecator.strategy.object_found(self, caller_line)
+    #   end
+    # end
     Class = DeprecatedClass
   end
 
