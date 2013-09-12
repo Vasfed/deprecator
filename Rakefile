@@ -13,3 +13,7 @@ end
 # task :test => :compile
 
 task :default => :test
+
+task :run_example do
+  load File.expand_path('../examples/example.rb', __FILE__)
+end
