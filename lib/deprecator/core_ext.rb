@@ -22,5 +22,5 @@ module Kernel
   alias NOT_IMPLEMENTED not_implemented
 end
 
-DEPRECATED = Deprecator::Deprecated
+DEPRECATED = Deprecator::DeprecatorModule
 Deprecated = DEPRECATED unless Object.const_defined?(:Deprecated)

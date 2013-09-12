@@ -4,6 +4,20 @@ require 'is_a'
 
 module Deprecator
 
+  class UnknownStrategy < ArgumentError; end
+
+  class Deprecated     < RuntimeError; end
+  class DeprecatedMethodCalled  < Deprecated; end
+  class DeprecatedObjectCreated < Deprecated; end
+
+  class CodeError      < RuntimeError; end
+  class NotImplemented < CodeError; end
+  class Fixme < CodeError; end
+  class Todo < CodeError; end
+
+
+
+
   class DeprecatedClass
     def self.inherited cls
       ::Deprecator.strategy.class_found(cls, caller_line)
@@ -12,7 +26,7 @@ module Deprecator
     end
   end
 
-  module Deprecated
+  module DeprecatorModule
     def self.included cls
       cls.extend self
     end
@@ -88,8 +102,6 @@ module Deprecator
 
   DefaultStrategy = Strategy::Warning
 
-  class UnknownStrategy < ArgumentError; end
-  class NotImplemented < RuntimeError; end
 
   @@strategy = nil
   def self.strategy

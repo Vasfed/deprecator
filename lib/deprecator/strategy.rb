@@ -1,7 +1,6 @@
 module Deprecator
   module Strategy
 
-
     class Base
       #on class/module definition/extenting with deprecater or deprecate statement
       def class_found cls, where=nil, reason=nil, args=nil
@@ -57,13 +56,15 @@ module Deprecator
       end
     end
 
+
+
     class Warning < Base
       def msg msg, where=nil
         warn "[DEPRECATED] #{msg}".gsub('%{where}', where)
       end
 
       def object_found cls, object, reason, where, deprecated_at # deprecated class initialize
-        msg "deprecated class #{cls} instantiated", where
+        msg "deprecated class #{cls} instantiated at %{where}", where
       end
 
       def method_called cls,name,reason=nil,where,defined_at
@@ -80,6 +81,46 @@ module Deprecator
       end
     end
 
+
+
+    class Raise < Base
+      def object_found cls, object, reason, where, deprecated_at # deprecated class initialize
+        raise DeprecatedObjectCreated, reason || "deprecated"
+      end
+
+      def method_called cls,name,reason=nil,where,defined_at
+        reason ||= "method %{method} is deprecated."
+        raise DeprecatedMethodCalled, (reason || "deprecated").gsub('%{method}', name.to_s)
+      end
+
+      def deprecated reason=nil, where=caller_line, args=nil
+        where =~ /in `(.+)'$/
+        method_name = $1 || '<unknown>'
+        reason ||= "%{method} is deprecated!"
+        reason.gsub!('%{method}', method_name)
+        raise Deprecated, reason
+      end
+    end
+
+
+
+    class RaiseHard < Raise
+      def class_found cls, where=nil, reason=nil, args=nil
+        raise Deprecated, "#{cls} is deprecated"
+      end
+
+      def method_found cls,name, reason, where=nil
+        raise Deprecated, "#{cls}##{name} is deprecated"
+      end
+
+      def fixme! msg, where, args;
+        raise Deprecator::Fixme, msg
+      end
+
+      def todo! msg, where, args
+        raise Deprecator::Todo, msg
+      end
+    end
 
   end
 end
