@@ -48,17 +48,21 @@ module Deprecator
         @method_added_stack.push(m)
       end
 
+      @skip_next_method_added_addition = true
       define_singleton_method(:method_added, ->(name){
         return if name == :method_added
         super(name)
         old = @method_added_stack.pop
         if old
+          @skip_next_method_added_addition = true
           define_singleton_method(:method_added, old)
+          remove_instance_variable :@skip_next_method_added_addition
         else
           class <<self; remove_method(:method_added); end
         end
         blk.call(name)
       })
+      remove_instance_variable :@skip_next_method_added_addition
     end
 
     def deprecated_method name=nil, reason=nil, &blk

@@ -24,14 +24,14 @@ module Deprecator
           })
         cls.send(:define_singleton_method, :singleton_method_added, ->(name){
           #guard for self?
-          if name == :method_added
+          if name == :method_added && !@skip_next_method_added_addition
             warn "[WARNING] when you replace method_added for deprecated class - you can no longer autotrack its object creation, use deprecation of initialize method."
           end
           })
       end
 
       # on deprecated class initialize
-      def object_found o, where=nil, reason=nil
+      def object_found cls, object, reason, where, deprecated_at
       end
       # on method definition
       def method_found cls,name, reason, where=nil
@@ -62,8 +62,8 @@ module Deprecator
         warn "[DEPRECATED] #{msg}".gsub('%{where}', where)
       end
 
-      def object_found o, where=nil, reason=nil # deprecated class initialize
-        msg "deprecated class #{o.class} instantiated", where
+      def object_found cls, object, reason, where, deprecated_at # deprecated class initialize
+        msg "deprecated class #{cls} instantiated", where
       end
 
       def method_called cls,name,reason=nil,where,defined_at
