@@ -7,7 +7,7 @@ describe Deprecator::Strategy::Warning do
   }
   it "calls warn" do
     subject.should_receive(:warn).with("[DEPRECATED] block (2 levels) in <top (required)> is deprecated!")
-    subject.deprecated
+    deprecated
   end
 
   it "raises on not implemented" do

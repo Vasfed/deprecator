@@ -109,18 +109,26 @@ module Deprecator
   end
 
   def self.strategy= s
-    case s
-    when Class then return(@@strategy = s.new)
+    @@strategy = case s
+    when nil then DefaultStrategy.new
+    when Class then s.new
     when Symbol then
       capitalized = s.capitalize
       if Strategy.const_defined?(capitalized)
-        self.strategy = Strategy.const_get(capitalized)
+        Strategy.const_get(capitalized).new
       else
         raise UnknownStrategy, s
       end
     else
-      @@strategy = s
+      s
     end
+  end
+
+  def self.with_strategy new_strategy
+    old_strategy = strategy
+    self.strategy = new_strategy
+    yield
+    self.strategy = old_strategy
   end
 end
 

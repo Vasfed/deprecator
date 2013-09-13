@@ -10,7 +10,10 @@ end
 
 module Kernel
   def deprecated reason=nil, *args
-    Deprecator.strategy.deprecated(reason, caller_line, args)
+    ::Deprecator.strategy.plain_deprecated(reason, caller_line, args)
+  end
+  def raise_deprecated reason=nil, *args
+    raise ::Deprecator::Deprecated, reason, *args
   end
   alias DEPRECATED deprecated
 

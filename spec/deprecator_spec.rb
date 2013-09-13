@@ -49,8 +49,12 @@ describe Deprecator do
         subject.strategy = :base
       }
       it "simple" do
-        subject.strategy.should_receive(:deprecated).with("reason", duck_type(:to_s), [])
+        subject.strategy.should_receive(:plain_deprecated).with("reason", duck_type(:to_s), [])
         deprecated "reason"
+      end
+
+      it "raise_deprecated" do
+        expect{ raise_deprecated }.to raise_error(Deprecator::Deprecated)
       end
 
       it "marking in class" do
@@ -119,6 +123,14 @@ describe Deprecator do
       it "raises on wrong strategy name" do
         expect{ subject.strategy = :no_such_strategy }.to raise_error(Deprecator::UnknownStrategy)
       end
+    end
+
+    it "with" do
+      expect{
+        subject.with_strategy(Object) do
+          deprecated
+        end
+      }.to raise_error(NoMethodError, /plain_deprecated/)
     end
   end
 end

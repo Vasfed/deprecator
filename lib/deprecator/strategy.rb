@@ -4,7 +4,6 @@ module Deprecator
     class Base
       #on class/module definition/extenting with deprecater or deprecate statement
       def class_found cls, where=nil, reason=nil, args=nil
-        this = self
         cls.send(:define_method, :initialize){|*args|
           ::Deprecator.strategy.object_found(cls, self, reason, caller_line, where)
         }
@@ -34,21 +33,20 @@ module Deprecator
       end
       # on method definition
       def method_found cls,name, reason, where=nil
-        this = self
         unless cls.method_defined?(name) # also we may place stubs there for existing methods in other strategies
           cls.send :define_method, name, ->(*args){
-            this.method_called cls,name,reason,caller_line,where
+            ::Deprecator.strategy.method_called cls,name,reason,caller_line,where
           }
         else
           method = cls.instance_method(name)
           cls.send :define_method, name, ->(*args){
-            this.method_called cls,name,reason,caller_line,where
+            ::Deprecator.strategy.method_called cls,name,reason,caller_line,where
             method.bind(self).call(*args)
           }
         end
       end
       def method_called cls,name,reason=nil,where,defined_at; end
-      def deprecated reason=nil, where=caller_line, args=nil; end
+      def plain_deprecated reason=nil, where=caller_line, args=nil; end
       def fixme! msg, where, args; end
       def todo! msg, where, args; end
       def not_implemented msg, where, args
@@ -72,7 +70,7 @@ module Deprecator
         msg reason.gsub('%{method}', name.to_s), where
       end
 
-      def deprecated reason=nil, where=caller_line, args=nil
+      def plain_deprecated reason=nil, where=caller_line, args=nil
         where =~ /in `(.+)'$/
         method_name = $1 || '<unknown>'
         reason ||= "%{method} is deprecated!"
@@ -93,7 +91,7 @@ module Deprecator
         raise DeprecatedMethodCalled, (reason || "deprecated").gsub('%{method}', name.to_s)
       end
 
-      def deprecated reason=nil, where=caller_line, args=nil
+      def plain_deprecated reason=nil, where=caller_line, args=nil
         where =~ /in `(.+)'$/
         method_name = $1 || '<unknown>'
         reason ||= "%{method} is deprecated!"
