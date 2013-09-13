@@ -3,7 +3,7 @@
 require 'deprecator'
 
 class SomeClass
-  deprecated
+  deprecated_class
 
   def method1
     deprecated

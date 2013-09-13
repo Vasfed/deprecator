@@ -5,7 +5,7 @@ require 'deprecator'
 Deprecator.strategy = :raise # included: warning(default), raise, raiseHard
 
 class SomeClass
-  deprecated "some reason"
+  deprecated_class "some reason"
   def initialize
     puts "SomeClass#initialize called"
   end

@@ -10,19 +10,18 @@ module Deprecator
 
         cls.send(:define_singleton_method, :method_added, ->(name){
           super(name)
-          if name == :initialize && !@skip_next_initialize_addition
+          if name == :initialize && !Deprecator._skip_next_initialize_addition?
             meth = instance_method(name)
-            @skip_next_initialize_addition = true
+            Deprecator::_skip_next_initialize_addition!
             define_method(name){|*args|
               ::Deprecator.strategy.object_found(cls, self, reason, caller_line, where)
               meth.bind(self).call(*args)
             }
-            remove_instance_variable :@skip_next_initialize_addition
           end
           })
         cls.send(:define_singleton_method, :singleton_method_added, ->(name){
           #guard for self?
-          if name == :method_added && !@skip_next_method_added_addition
+          if name == :method_added && !Deprecator._skip_next_method_added_addition?
             warn "[WARNING] when you replace method_added for deprecated class - you can no longer autotrack its object creation, use deprecation of initialize method."
           end
           })

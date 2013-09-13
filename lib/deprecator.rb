@@ -51,7 +51,7 @@ module Deprecator
 
 
   module ClassClassMethods
-    def deprecated reason=nil, *args
+    def deprecated_class reason=nil, *args
       ::Deprecator.strategy.class_found(self, caller_line, reason, args)
     end
 
@@ -62,21 +62,19 @@ module Deprecator
         @method_added_stack.push(m)
       end
 
-      @skip_next_method_added_addition = true
+      Deprecator._skip_next_method_added_addition!
       define_singleton_method(:method_added, ->(name){
         return if name == :method_added
         super(name)
         old = @method_added_stack.pop
         if old
-          @skip_next_method_added_addition = true
+          Deprecator._skip_next_method_added_addition!
           define_singleton_method(:method_added, old)
-          remove_instance_variable :@skip_next_method_added_addition
         else
           class <<self; remove_method(:method_added); end
         end
         blk.call(name)
       })
-      remove_instance_variable :@skip_next_method_added_addition
     end
 
     def deprecated_method name=nil, reason=nil, &blk
@@ -129,6 +127,27 @@ module Deprecator
     self.strategy = new_strategy
     yield
     self.strategy = old_strategy
+  end
+
+  #@private
+  def self._skip_next_initialize_addition!
+    @_skip_next_initialize_addition = true
+  end
+  #@private
+  def self._skip_next_initialize_addition?
+    return false if !@_skip_next_initialize_addition
+    remove_instance_variable :@_skip_next_initialize_addition
+    return true
+  end
+  #@private
+  def self._skip_next_method_added_addition!
+    @_skip_next_method_added_addition = true
+  end
+  #@private
+  def self._skip_next_method_added_addition?
+    return false if !@_skip_next_method_added_addition
+    remove_instance_variable :@_skip_next_method_added_addition
+    return true
   end
 end
 

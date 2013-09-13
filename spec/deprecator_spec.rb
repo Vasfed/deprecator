@@ -25,7 +25,15 @@ describe Deprecator do
       end
       it "via call to deprecated" do
         subject.strategy.should_receive(:class_found).with(kind_of(Class), duck_type(:to_s), "abc", [])
-        Class.new{ deprecated "abc" }
+        Class.new{ deprecated_class "abc" }
+      end
+      it "class methods" do
+        subject.strategy.should_receive(:class_found).with(kind_of(Class), duck_type(:to_s), "aa", []).once
+        subject.strategy.should_receive(:plain_deprecated).with("bb", duck_type(:to_s), [])
+        (Class.new{
+          deprecated_class "aa"
+          def self.cls_method; deprecated "bb"; end
+        }).cls_method
       end
     end
 
@@ -40,7 +48,7 @@ describe Deprecator do
       end
       it "via call to deprecated" do
         subject.strategy.should_receive(:class_found).with(kind_of(Module), duck_type(:to_s), "abc", [])
-        Module.new{ deprecated "abc" }
+        Module.new{ deprecated_class "abc" }
       end
     end
 
@@ -86,14 +94,14 @@ describe Deprecator do
       end
 
       it "with reason passed" do
-        cls = Class.new{ deprecated "reason" }
+        cls = Class.new{ deprecated_class "reason" }
         subject.strategy.should_receive(:object_found).with(cls, kind_of(cls), "reason", /#{Regexp.escape __FILE__}:#{__LINE__+1}/, /#{Regexp.escape __FILE__}:#{__LINE__-1}/)
         cls.new
       end
 
       it "and guards for initialize method" do
         cls = Class.new{
-          deprecated "reason"
+          deprecated_class "reason"
           # def self.method_added(name); puts "method added #{name}"; end
           def initialize
             self.class.initialize_called
